@@ -1,7 +1,6 @@
 import {
   createJsonPlugin,
   getPropertyKeys,
-  replacePropertyValue,
   sortObjectProperties,
   sortStringArray,
   combine,
@@ -87,6 +86,8 @@ export const packageJsonPlugin = createJsonPlugin({
       'scripts',
 
       'main',
+      'exports',
+
       'umd:main',
       'jsdelivr',
       'unpkg',
@@ -111,13 +112,26 @@ export const packageJsonPlugin = createJsonPlugin({
       'publishConfig',
     ]),
 
-    // Sort all properties that are objects alphabetically
-    replacePropertyValues(deepSortObjectProperties()),
-    // Sort scripts again using a different order
-    replacePropertyValue('scripts', sortScripts),
+    // Now sort the values of the top-level properties
+    replacePropertyValues((value, opts, key) => {
+      switch (key) {
+        case 'exports':
+        case 'imports':
+          // Keep exports and imports as they are. Order can be important here,
+          // depending on the shape of the declared exports/imports.
+          return value;
 
-    // Sort the bundled dependencies array of strings
-    replacePropertyValue('bundleDependencies', sortStringArray),
-    replacePropertyValue('bundledDependencies', sortStringArray),
+        case 'scripts':
+          // Sort scripts using a script-specific sort order
+          return sortScripts(value, opts);
+
+        case 'bundleDependencies':
+        case 'bundledDependencies':
+          return sortStringArray(value, opts);
+
+        default:
+          return deepSortObjectProperties()(value, opts);
+      }
+    }),
   ),
 });
