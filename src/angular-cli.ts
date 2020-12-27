@@ -40,22 +40,25 @@ const plugin = createJsonPlugin({
         sortObjectProperties((projects, options) => {
           const keys = getPropertyKeys(projects).sort();
 
-          const sortAtTheTop = parseProjectNamesOption(
-            (options as AngularCliParserOptions).angularCliTopProjects,
+          const sortAtTheTop = new Set(
+            parseProjectNamesOption(
+              (options as AngularCliParserOptions).angularCliTopProjects,
+            ),
           );
-          const sortAtTheBottom = parseProjectNamesOption(
-            (options as AngularCliParserOptions).angularCliBottomProjects,
+          const sortAtTheBottom = new Set(
+            parseProjectNamesOption(
+              (options as AngularCliParserOptions).angularCliBottomProjects,
+            ),
           );
 
           return [
-            ...keys.filter(key => sortAtTheTop.includes(key)),
+            ...keys.filter(key => sortAtTheTop.has(key)),
 
             ...keys.filter(
-              key =>
-                !sortAtTheTop.includes(key) && !sortAtTheBottom.includes(key),
+              key => !sortAtTheTop.has(key) && !sortAtTheBottom.has(key),
             ),
 
-            ...keys.filter(key => sortAtTheBottom.includes(key)),
+            ...keys.filter(key => sortAtTheBottom.has(key)),
           ];
         }),
 
@@ -68,24 +71,29 @@ const plugin = createJsonPlugin({
               'root',
               'sourceRoot',
               'architect',
+              'i18n',
               'schematics',
             ]),
 
             replacePropertyValue(
               'architect',
               combine(
-                deepSortObjectProperties(),
+                sortObjectProperties(),
                 replacePropertyValues(
-                  sortObjectProperties([
-                    'builder',
-                    'options',
-                    'configurations',
-                    'schematics',
-                  ]),
+                  combine(
+                    sortObjectProperties([
+                      'builder',
+                      'options',
+                      'configurations',
+                      'schematics',
+                    ]),
+                    replacePropertyValues(deepSortObjectProperties()),
+                  ),
                 ),
               ),
             ),
 
+            replacePropertyValue('i18n', deepSortObjectProperties()),
             replacePropertyValue('schematics', deepSortObjectProperties()),
           ),
         ),
