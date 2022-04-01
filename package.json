@@ -1,6 +1,6 @@
 {
   "name": "prettier-plugin-json-formats",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Prettier plugin adding formatting rules for specific JSON file formats",
   "keywords": [
