@@ -12,6 +12,7 @@
   "license": "MIT",
   "author": "Bram Gotink <bram@gotink.me>",
   "scripts": {
+    "postinstall": "is-ci || husky install",
     "build": "tsc && cp README.md dist/ && jq 'del(.scripts) | del(.devDependencies) | del(.private)' package.json >dist/package.json"
   },
   "main": "index.js",
@@ -27,7 +28,8 @@
     "@typescript-eslint/parser": "6.2.0",
     "eslint": "8.45.0",
     "express-check-in": "0.1.2",
-    "husky": "4.2.5",
+    "husky": "8.0.3",
+    "is-ci": "3.0.1",
     "prettier": "3.0.0",
     "prettier-plugin-json-formats": "link:.",
     "ts-node": "10.9.1",
