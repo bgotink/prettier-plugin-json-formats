@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+<!-- add new items here-->
+
+## v0.5.0
+
 - Update minimum prettier version to 3.0.0
 - Change type of the `angularCliTopProjects` and `angularCliBottomProjects` options to arrays of strings
   Instead of passing
