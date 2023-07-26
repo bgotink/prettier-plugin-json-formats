@@ -100,4 +100,9 @@ export type Literal =
   | StringLiteral
   | TrueLiteral;
 export type Expression = ArrayExpression | ObjectExpression | Literal;
-export type Node = Expression | ObjectProperty;
+export type Node = Expression | ObjectProperty | Program;
+
+export interface Program extends BaseValueNode {
+  type: 'program';
+  expression: Expression;
+}

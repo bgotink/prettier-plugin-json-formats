@@ -1,8 +1,9 @@
 import {JsonFlags} from '../flags';
 
 import {Parser} from 'prettier';
-import {Node} from './nodes';
+import {Node, Program} from './nodes';
 import {parseJson} from './parser';
+import {AstModifier} from '../interfaces';
 
 export * from './nodes';
 export * from './values';
@@ -18,12 +19,24 @@ function locEnd(node: Node): number {
 
 export function createParser(
   astFormat: string,
+  modifier: AstModifier,
   flags = JsonFlags.Loose,
-): Parser {
+): Parser<Node> {
   return {
     astFormat,
     locStart,
     locEnd,
-    parse: text => parseJson(text, flags),
+    parse: (text, options): Program => {
+      const expression = modifier(parseJson(text, flags), options);
+
+      return {
+        type: 'program',
+        expression,
+
+        rawText: expression.rawText,
+        end: expression.end,
+        start: expression.start,
+      };
+    },
   };
 }

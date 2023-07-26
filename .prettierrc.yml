@@ -1,4 +1,6 @@
 singleQuote: true
+plugins:
+  - prettier-plugin-json-formats
 quoteProps: as-needed
 trailingComma: all
 bracketSpacing: false

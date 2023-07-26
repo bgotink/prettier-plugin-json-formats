@@ -1,12 +1,13 @@
-import {doc, Doc, FastPath, Printer, ParserOptions, util} from 'prettier';
+import {doc, Doc, Printer, ParserOptions, util, AstPath} from 'prettier';
 import {
   Node,
   Expression,
   ObjectProperty,
   StringLiteral,
   Identifier,
+  ArrayExpression,
+  ObjectExpression,
 } from '../parser';
-import {AstModifier} from '../interfaces';
 import {JsonFlags} from '../flags';
 import {
   printLeadingComment,
@@ -16,28 +17,14 @@ import {
 import {hasLeadingOwnLineComment, hasTrailingComment} from './utils';
 import {keyword} from 'esutils';
 
-const {concat, hardline, indent, join} = doc.builders;
+const {hardline, indent, join} = doc.builders;
 const {makeString} = util;
-
-type ExtendedNode =
-  | Node
-  | {
-      type: 'JsonRoot';
-      node: Expression;
-    };
 
 function shouldPrintComma(options: ParserOptions, flags: JsonFlags) {
   return (
     (flags & JsonFlags.TrailingCommasAllowed) !== 0 &&
     options.trailingComma !== 'none'
   );
-}
-
-function createPreprocessor(modifier: AstModifier) {
-  return function preprocess(ast: Node, options: ParserOptions): ExtendedNode {
-    ast = modifier(ast as Expression, options);
-    return {...ast, type: 'JsonRoot', node: ast};
-  };
 }
 
 function printNumber(rawNumber: string, flags: JsonFlags) {
@@ -145,12 +132,10 @@ function printPropertyKey(
   options: ParserOptions,
 ): Doc {
   if (hasTrailingComment(leftNode)) {
-    return indent(
-      concat([printedLeft, printTrailingComment(null!, options, true)]),
-    );
+    return indent([printedLeft, printTrailingComment(null!, options, true)]);
   }
 
-  return concat([printedLeft]);
+  return [printedLeft];
 }
 
 function printPropertyValue(
@@ -159,20 +144,22 @@ function printPropertyValue(
   options: ParserOptions,
 ): Doc {
   if (hasLeadingOwnLineComment(options.originalText, rightNode, options)) {
-    return indent(
-      concat([hardline, printLeadingComment(null!, options), printedRight]),
-    );
+    return indent([
+      hardline,
+      printLeadingComment(null!, options),
+      printedRight,
+    ]);
   }
 
-  return concat([' ', printedRight]);
+  return [' ', printedRight];
 }
 
 function printObjectProperty(
-  path: FastPath<ObjectProperty>,
+  path: AstPath<ObjectProperty>,
   options: ParserOptions,
   objectHasStringKey: boolean,
   flags: JsonFlags,
-  print: (node: FastPath) => Doc,
+  print: (node: AstPath) => Doc,
 ): Doc {
   const node = path.getNode();
 
@@ -185,27 +172,27 @@ function printObjectProperty(
     : node.key.value;
   const value = path.call(print, 'value');
 
-  return concat([
+  return [
     printPropertyKey(node.key, key, options),
     ':',
     printPropertyValue(node.value, value, options),
-  ]);
+  ];
 }
 
 function printWithComments(
-  path: FastPath,
+  path: AstPath<Node>,
   options: ParserOptions,
   printed: Doc,
   flags: JsonFlags,
 ) {
-  const node = path.getNode() as Expression | ObjectProperty;
+  const node = path.getNode();
 
   if (!node || (flags & JsonFlags.CommentsAllowed) === 0) {
     return printed;
   }
 
   const prefix = node.leadingComments
-    ? concat([
+    ? [
         join(
           hardline,
           path.map(
@@ -214,7 +201,7 @@ function printWithComments(
           ),
         ),
         hardline,
-      ])
+      ]
     : '';
   const suffix = node.trailingComments
     ? join(
@@ -226,28 +213,28 @@ function printWithComments(
       )
     : '';
 
-  return concat([prefix, printed, suffix]);
+  return [prefix, printed, suffix];
 }
 
 function createGenericPrint(flags: JsonFlags) {
   return (
-    path: FastPath,
+    path: AstPath<Node>,
     options: ParserOptions,
-    print: (node: FastPath) => Doc,
+    print: (node: AstPath) => Doc,
   ): Doc => {
-    const node = path.getValue() as ExtendedNode;
+    const node = path.node;
     switch (node.type) {
-      case 'JsonRoot':
-        return concat([
+      case 'program':
+        return [
           path.call(
             p => printWithComments(p, options, print(p), flags),
-            'node',
+            'expression',
           ),
           hardline,
-        ]);
+        ];
       case 'array': {
         const contentPrefix = node.leadingInnerComments
-          ? concat([
+          ? [
               hardline,
               join(
                 hardline,
@@ -256,10 +243,10 @@ function createGenericPrint(flags: JsonFlags) {
                   'leadingInnerComments',
                 ),
               ),
-            ])
+            ]
           : '';
         const contentSuffix = node.trailingInnerComments
-          ? concat([
+          ? [
               hardline,
               join(
                 hardline,
@@ -268,34 +255,37 @@ function createGenericPrint(flags: JsonFlags) {
                   'trailingInnerComments',
                 ),
               ),
-            ])
+            ]
           : '';
 
         if (node.elements.length === 0) {
           if (!contentPrefix && !contentSuffix) {
-            return printWithComments(path, options, '[]', flags);
+            return printWithComments(
+              path as AstPath<ArrayExpression>,
+              options,
+              '[]',
+              flags,
+            );
           }
 
           return printWithComments(
-            path,
+            path as AstPath<ArrayExpression>,
             options,
-            concat([
+            [
               '[',
-              indent(
-                concat([
-                  contentPrefix,
-                  contentPrefix && contentSuffix ? hardline : '',
-                  contentSuffix,
-                ]),
-              ),
+              indent([
+                contentPrefix,
+                contentPrefix && contentSuffix ? hardline : '',
+                contentSuffix,
+              ]),
               hardline,
               ']',
-            ]),
+            ],
             flags,
           );
         }
 
-        const elements = path.map((element: FastPath<Expression>, i) => {
+        const elements = path.map((element: AstPath<Expression>, i) => {
           const elementNode = element.getNode();
           const printedNode = print(element);
 
@@ -305,7 +295,7 @@ function createGenericPrint(flags: JsonFlags) {
           const printed = printWithComments(
             element,
             options,
-            addComma ? concat([printedNode, ',']) : printedNode,
+            addComma ? [printedNode, ','] : printedNode,
             flags,
           );
           const hasLeadingComments = !!(
@@ -352,11 +342,11 @@ function createGenericPrint(flags: JsonFlags) {
           content.pop();
         }
 
-        return concat(['[', indent(concat(content)), hardline, ']']);
+        return ['[', indent(content), hardline, ']'];
       }
       case 'object': {
         const contentPrefix = node.leadingInnerComments
-          ? concat([
+          ? [
               hardline,
               join(
                 hardline,
@@ -365,10 +355,10 @@ function createGenericPrint(flags: JsonFlags) {
                   'leadingInnerComments',
                 ),
               ),
-            ])
+            ]
           : '';
         const contentSuffix = node.trailingInnerComments
-          ? concat([
+          ? [
               hardline,
               join(
                 hardline,
@@ -377,34 +367,37 @@ function createGenericPrint(flags: JsonFlags) {
                   'trailingInnerComments',
                 ),
               ),
-            ])
+            ]
           : '';
 
         if (node.properties.length === 0) {
           if (!contentPrefix && !contentSuffix) {
-            return printWithComments(path, options, '{}', flags);
+            return printWithComments(
+              path as AstPath<ObjectExpression>,
+              options,
+              '{}',
+              flags,
+            );
           }
 
           return printWithComments(
-            path,
+            path as AstPath<ObjectExpression>,
             options,
-            concat([
+            [
               '{',
-              indent(
-                concat([
-                  contentPrefix,
-                  contentPrefix && contentSuffix ? hardline : '',
-                  contentSuffix,
-                ]),
-              ),
+              indent([
+                contentPrefix,
+                contentPrefix && contentSuffix ? hardline : '',
+                contentSuffix,
+              ]),
               hardline,
               '}',
-            ]),
+            ],
             flags,
           );
         }
 
-        const properties = path.map((element: FastPath<Expression>, i) => {
+        const properties = path.map((element, i) => {
           const propertyNode = element.getNode();
           const printedNode = print(element);
 
@@ -414,7 +407,7 @@ function createGenericPrint(flags: JsonFlags) {
           const printed = printWithComments(
             element,
             options,
-            addComma ? concat([printedNode, ',']) : printedNode,
+            addComma ? [printedNode, ','] : printedNode,
             flags,
           );
           const hasLeadingComments = !!(
@@ -461,11 +454,11 @@ function createGenericPrint(flags: JsonFlags) {
           content.pop();
         }
 
-        return concat(['{', indent(concat(content)), hardline, '}']);
+        return ['{', indent(content), hardline, '}'];
       }
       case 'object property':
         return printObjectProperty(
-          path,
+          path as AstPath<ObjectProperty>,
           options,
           /* TODO */ true,
           flags,
@@ -488,12 +481,8 @@ function createGenericPrint(flags: JsonFlags) {
   };
 }
 
-export function createPrinter(
-  modifier: AstModifier,
-  flags: JsonFlags,
-): Printer {
+export function createPrinter(flags: JsonFlags): Printer<Node> {
   return {
-    preprocess: createPreprocessor(modifier),
     print: createGenericPrint(flags),
-  } as Printer;
+  };
 }

@@ -1,62 +1,43 @@
-import {doc, Doc, FastPath, Printer, ParserOptions} from 'prettier';
-import {Node, Expression} from '../parser';
-import {AstModifier} from '../interfaces';
+import {doc, Doc, AstPath, Printer, ParserOptions} from 'prettier';
+import {Node} from '../parser';
 
-const {concat, hardline, indent, join} = doc.builders;
-
-type ExtendedNode =
-  | Node
-  | {
-      type: 'JsonRoot';
-      node: Node;
-    };
-
-function createPreprocessor(modifier: AstModifier) {
-  return function preprocess(ast: Node, options: ParserOptions): ExtendedNode {
-    ast = modifier(ast as Expression, options);
-    return {...ast, type: 'JsonRoot', node: ast};
-  };
-}
+const {hardline, indent, join} = doc.builders;
 
 function genericPrint(
-  path: FastPath,
+  path: AstPath<Node>,
   _options: ParserOptions,
-  print: (node: FastPath) => Doc,
+  print: (node: AstPath) => Doc,
 ): Doc {
-  const node = path.getValue() as ExtendedNode;
+  const node = path.node;
   switch (node.type) {
-    case 'JsonRoot':
-      return concat([path.call(print, 'node'), hardline]);
+    case 'program':
+      return [path.call(print, 'expression'), hardline];
     case 'array':
       return node.elements.length === 0
         ? '[]'
-        : concat([
+        : [
             '[',
-            indent(
-              concat([
-                hardline,
-                join(concat([',', hardline]), path.map(print, 'elements')),
-              ]),
-            ),
+            indent([
+              hardline,
+              join([',', hardline], path.map(print, 'elements')),
+            ]),
             hardline,
             ']',
-          ]);
+          ];
     case 'object':
       return node.properties.length === 0
         ? '{}'
-        : concat([
+        : [
             '{',
-            indent(
-              concat([
-                hardline,
-                join(concat([',', hardline]), path.map(print, 'properties')),
-              ]),
-            ),
+            indent([
+              hardline,
+              join([',', hardline], path.map(print, 'properties')),
+            ]),
             hardline,
             '}',
-          ]);
+          ];
     case 'object property':
-      return concat([path.call(print, 'key'), ': ', path.call(print, 'value')]);
+      return [path.call(print, 'key'), ': ', path.call(print, 'value')];
     case 'null':
       return 'null';
     case 'true':
@@ -81,10 +62,9 @@ function clean(node: Node /*, newNode: Node, parent*/): Node | void {
   return;
 }
 
-export function createPrinter(modifier: AstModifier): Printer {
+export function createPrinter(): Printer<Node> {
   return {
-    preprocess: createPreprocessor(modifier),
     print: genericPrint,
     massageAstNode: clean,
-  } as Printer;
+  };
 }

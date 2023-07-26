@@ -1,20 +1,21 @@
+import type {ParserOptions, Plugin} from 'prettier';
+
 import {
   combine,
   createJsonPlugin,
   deepSortObjectProperties,
   getPropertyKeys,
   JsonFlags,
-  JsonPlugin,
   renameProperty,
   replacePropertyValue,
   replacePropertyValues,
   sortObjectProperties,
 } from './create-plugin';
-import {ParserOptions} from 'prettier';
+import {Node} from './create-plugin/parser';
 
 interface AngularCliParserOptions extends ParserOptions {
-  angularCliTopProjects: string;
-  angularCliBottomProjects: string;
+  angularCliTopProjects: string[];
+  angularCliBottomProjects: string[];
 }
 
 const plugin = createJsonPlugin({
@@ -41,14 +42,10 @@ const plugin = createJsonPlugin({
           const keys = getPropertyKeys(projects).sort();
 
           const sortAtTheTop = new Set(
-            parseProjectNamesOption(
-              (options as AngularCliParserOptions).angularCliTopProjects,
-            ),
+            (options as AngularCliParserOptions).angularCliTopProjects,
           );
           const sortAtTheBottom = new Set(
-            parseProjectNamesOption(
-              (options as AngularCliParserOptions).angularCliBottomProjects,
-            ),
+            (options as AngularCliParserOptions).angularCliBottomProjects,
           );
 
           return [
@@ -104,28 +101,23 @@ const plugin = createJsonPlugin({
   ),
 });
 
-function parseProjectNamesOption(option: string) {
-  return option
-    .split(',')
-    .map(project => project.trim())
-    .filter(Boolean);
-}
-
-export const angularCliPlugin: JsonPlugin = {
+export const angularCliPlugin = {
   ...plugin,
 
   options: {
     angularCliTopProjects: {
       category: 'Angular CLI',
-      default: '',
-      type: 'path',
+      default: [{value: []}],
+      type: 'string',
+      array: true,
       description: 'Keys of projects to sort at the top',
     },
     angularCliBottomProjects: {
       category: 'Angular CLI',
-      default: '',
-      type: 'path',
+      default: [{value: []}],
+      type: 'string',
+      array: true,
       description: 'Keys of projects to sort at the bottom',
     },
   },
-};
+} satisfies Plugin<Node>;

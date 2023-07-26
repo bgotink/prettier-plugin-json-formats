@@ -1,6 +1,6 @@
-import {ParserOptions} from 'prettier';
+import type {ParserOptions} from 'prettier';
 
-import {
+import type {
   Expression,
   ObjectExpression,
   ObjectProperty,
@@ -9,7 +9,7 @@ import {
   Node,
 } from './parser';
 
-import {AstModifier} from './interfaces';
+import type {AstModifier} from './interfaces';
 
 function isStringLiteral(node: Node): node is StringLiteral {
   return node.type === 'string';

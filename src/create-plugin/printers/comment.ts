@@ -1,16 +1,9 @@
-import {doc, Doc, ParserOptions, FastPath} from 'prettier';
+import {doc, Doc, ParserOptions, AstPath} from 'prettier';
 
 import {hasNewline, skipNewline, isPreviousLineEmpty} from './utils';
 import {Comment, Expression, ObjectProperty, MultiLineComment} from '../parser';
 
-const {
-  breakParent,
-  concat,
-  cursor,
-  hardline,
-  join,
-  lineSuffix,
-} = doc.builders as typeof doc.builders & {cursor: doc.builders.Concat};
+const {breakParent, cursor, hardline, join, lineSuffix} = doc.builders;
 
 function isIndentableBlockComment(comment: MultiLineComment) {
   // If the comment has multiple lines and every line starts with a star
@@ -24,7 +17,7 @@ function isIndentableBlockComment(comment: MultiLineComment) {
 function printIndentableBlockComment(comment: MultiLineComment) {
   const lines = comment.comment.split('\n');
 
-  return concat([
+  return [
     '/*',
     join(
       hardline,
@@ -35,11 +28,11 @@ function printIndentableBlockComment(comment: MultiLineComment) {
       ),
     ),
     '*/',
-  ]);
+  ];
 }
 
 export function printComment(
-  commentPath: FastPath<Comment>,
+  commentPath: AstPath<Comment>,
   options: ParserOptions,
   ensureSafeForContentAfter = false,
 ): Doc {
@@ -56,21 +49,21 @@ export function printComment(
       );
     }
     case 'single line comment':
-      return concat([
+      return [
         // Print shebangs with the proper comment characters
         options.originalText.slice(options.locStart(comment)).startsWith('#!')
           ? '#!'
           : '// ',
         comment.comment.trim(),
         ensureSafeForContentAfter ? hardline : '',
-      ]);
+      ];
     default:
       throw new Error('Not a comment: ' + JSON.stringify(comment));
   }
 }
 
 export function printLeadingComment(
-  commentPath: FastPath<Comment>,
+  commentPath: AstPath<Comment>,
   options: ParserOptions,
 ): Doc {
   const comment = commentPath.getValue();
@@ -78,9 +71,11 @@ export function printLeadingComment(
   if (!contents) {
     return '';
   }
-  const isBlock = ((options as unknown) as {
-    printer: {isBlockComment?: (comment: Comment) => boolean};
-  }).printer.isBlockComment?.(comment);
+  const isBlock = (
+    options as unknown as {
+      printer: {isBlockComment?: (comment: Comment) => boolean};
+    }
+  ).printer.isBlockComment?.(comment);
 
   // Leading block comments should see if they need to stay on the
   // same line or not.
@@ -88,14 +83,14 @@ export function printLeadingComment(
     return contents;
   }
 
-  return concat([
+  return [
     contents,
     hasNewline(options.originalText, options.locEnd(comment)) ? hardline : ' ',
-  ]);
+  ];
 }
 
 export function printTrailingComment(
-  commentPath: FastPath<Comment>,
+  commentPath: AstPath<Comment>,
   options: ParserOptions,
   ensureSafeForContentAfter = false,
 ): Doc {
@@ -108,9 +103,11 @@ export function printTrailingComment(
   if (!contents) {
     return '';
   }
-  const isBlock = ((options as unknown) as {
-    printer: {isBlockComment?: (comment: Comment) => boolean};
-  }).printer.isBlockComment?.(comment);
+  const isBlock = (
+    options as unknown as {
+      printer: {isBlockComment?: (comment: Comment) => boolean};
+    }
+  ).printer.isBlockComment?.(comment);
 
   if (
     hasNewline(options.originalText, options.locStart(comment), {
@@ -135,31 +132,26 @@ export function printTrailingComment(
       options.locStart,
     );
 
-    return lineSuffix(
-      concat([hardline, isLineBeforeEmpty ? hardline : '', contents]),
-    );
+    return lineSuffix([hardline, isLineBeforeEmpty ? hardline : '', contents]);
   } else if (isBlock) {
     // Trailing block comments never need a newline
-    return concat([' ', contents]);
+    return [' ', contents];
   }
 
-  return concat([
-    lineSuffix(concat([' ', contents])),
-    !isBlock ? breakParent : '',
-  ]);
+  return [lineSuffix([' ', contents]), !isBlock ? breakParent : ''];
 }
 
 function prependCursorPlaceholder(
-  path: FastPath,
+  path: AstPath,
   options: ParserOptions,
   printed: Doc,
 ): Doc {
   if (
     path.getNode() ===
-      ((options as unknown) as {cursorNode: unknown}).cursorNode &&
+      (options as unknown as {cursorNode: unknown}).cursorNode &&
     path.getValue()
   ) {
-    return concat([cursor, printed, cursor]);
+    return [cursor, printed, cursor];
   }
   return printed;
 }
@@ -169,8 +161,8 @@ function isEmpty<T>(arr?: T[]): arr is [T, ...T[]] {
 }
 
 export function printComments(
-  path: FastPath<Expression | ObjectProperty>,
-  print: (path: FastPath) => Doc,
+  path: AstPath<Expression | ObjectProperty>,
+  print: (path: AstPath) => Doc,
   options: ParserOptions,
 ): Doc {
   const value = path.getValue();
@@ -183,14 +175,14 @@ export function printComments(
     return prependCursorPlaceholder(path, options, printed);
   }
 
-  const leadingParts = path.map((commentPath: FastPath) => {
+  const leadingParts = path.map((commentPath: AstPath) => {
     const contents = printLeadingComment(commentPath, options);
 
     const text = options.originalText;
     const index = skipNewline(text, options.locEnd(commentPath.getNode()));
 
     if (index !== false && hasNewline(text, index)) {
-      return concat([contents, hardline]);
+      return [contents, hardline];
     } else {
       return contents;
     }
@@ -199,7 +191,7 @@ export function printComments(
   const trailingParts = [
     printed,
     ...path.map(
-      (commentPath: FastPath) => printTrailingComment(commentPath, options),
+      (commentPath: AstPath) => printTrailingComment(commentPath, options),
       'trailingComments',
     ),
   ];
@@ -207,6 +199,6 @@ export function printComments(
   return prependCursorPlaceholder(
     path,
     options,
-    concat(leadingParts.concat(trailingParts)),
+    leadingParts.concat(trailingParts),
   );
 }
